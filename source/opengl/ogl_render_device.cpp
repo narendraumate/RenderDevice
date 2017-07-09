@@ -2,6 +2,8 @@
 
 #include <glad/glad.h>
 
+#include <cstring>
+
 #include <iostream>
 #include <string>
 #include <map>
@@ -9,65 +11,125 @@
 namespace render
 {
 
-class OpenGLVertexShader : public VertexShader
+class OpenGLFunction : public Function
 {
 public:
 
-	OpenGLVertexShader(const char *code)
+	OpenGLFunction(const FunctionType& functionType, const char *code)
+	: Function(functionType, code)
 	{
-		// ------------------------------------
-		// vertex shader
-		vertexShader = glCreateShader(GL_VERTEX_SHADER);
-		glShaderSource(vertexShader, 1, &code, NULL);
-		glCompileShader(vertexShader);
+		// shader
+		shader = glCreateShader(functionType == FUNCTIONTYPE_VERTEX ? GL_VERTEX_SHADER : GL_FRAGMENT_SHADER);
+		glShaderSource(shader, 1, &code, NULL);
+		glCompileShader(shader);
 
 		// check for shader compile errors
 		int success;
 		char infoLog[512];
-		glGetShaderiv(vertexShader, GL_COMPILE_STATUS, &success);
+		glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
 		if(!success)
 		{
-			glGetShaderInfoLog(vertexShader, 512, NULL, infoLog);
-			std::cout << "ERROR::SHADER::VERTEX::COMPILATION_FAILED\n" << infoLog << std::endl;
+			glGetShaderInfoLog(shader, 512, NULL, infoLog);
+			std::cout << "ERROR::SHADER::"<< (functionType == FUNCTIONTYPE_VERTEX ? "VERTEX" : "FRAGMENT") << "::COMPILATION_FAILED\n" << infoLog << std::endl;
 		}
 	}
 
-	~OpenGLVertexShader() override
+	~OpenGLFunction() override
 	{
-		glDeleteShader(vertexShader);
+		glDeleteShader(shader);
 	}
 
-	int vertexShader = 0;
+	int shader = 0;
 };
 
-class OpenGLPixelShader : public PixelShader
+class OpenGLVertexDescriptor : public VertexDescriptor
 {
 public:
 
-	OpenGLPixelShader(const char *code)
+	struct OpenGLVertexAttribute
 	{
-		// fragment shader
-		fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-		glShaderSource(fragmentShader, 1, &code, NULL);
-		glCompileShader(fragmentShader);
+		GLuint index;
+		GLint size;
+		GLenum type;
+		GLboolean normalized;
+		GLsizei stride;
+		const GLvoid *pointer;
+	};
 
-		// check for shader compile errors
-		int success;
-		char infoLog[512];
-		glGetShaderiv(fragmentShader, GL_COMPILE_STATUS, &success);
-		if(!success)
+	OpenGLVertexDescriptor(const VertexBufferLayout& vertexBufferLayout) : numVertexAttributes(vertexBufferLayout.attributeCount)
+	{
+		static GLenum toOpenGLType[] = { GL_BYTE, GL_SHORT, GL_INT, GL_UNSIGNED_BYTE, GL_UNSIGNED_SHORT, GL_UNSIGNED_INT,
+			GL_BYTE, GL_SHORT, GL_INT, GL_UNSIGNED_BYTE, GL_UNSIGNED_SHORT, GL_UNSIGNED_INT, GL_HALF_FLOAT, GL_FLOAT, GL_DOUBLE };
+		static GLboolean toOpenGLNormalized[] = { GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE,
+			GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE, GL_FALSE, GL_FALSE };
+
+		// Describes a vertex attribute's type
+		enum VertexAttributeType
 		{
-			glGetShaderInfoLog(fragmentShader, 512, NULL, infoLog);
-			std::cout << "ERROR::SHADER::FRAGMENT::COMPILATION_FAILED\n" << infoLog << std::endl;
+			VERTEXATTRIBUTETYPE_BYTE = 0,
+			VERTEXATTRIBUTETYPE_SHORT,
+			VERTEXATTRIBUTETYPE_INT,
+
+			VERTEXATTRIBUTETYPE_UNSIGNED_BYTE,
+			VERTEXATTRIBUTETYPE_UNSIGNED_SHORT,
+			VERTEXATTRIBUTETYPE_UNSIGNED_INT,
+
+			VERTEXATTRIBUTETYPE_BYTE_NORMALIZE,
+			VERTEXATTRIBUTETYPE_SHORT_NORMALIZE,
+			VERTEXATTRIBUTETYPE_INT_NORMALIZE,
+
+			VERTEXATTRIBUTETYPE_UNSIGNED_BYTE_NORMALIZE,
+			VERTEXATTRIBUTETYPE_UNSIGNED_SHORT_NORMALIZE,
+			VERTEXATTRIBUTETYPE_UNSIGNED_INT_NORMALIZE,
+
+			VERTEXATTRIBUTETYPE_HALF_FLOAT,
+			VERTEXATTRIBUTETYPE_FLOAT,
+			VERTEXATTRIBUTETYPE_DOUBLE
+		};
+
+		openGLVertexAttributes = new OpenGLVertexAttribute[numVertexAttributes];
+		for(unsigned int i = 0; i < numVertexAttributes; i++)
+		{
+			VertexAttributeType type;
+			int size;
+
+			if (vertexBufferLayout.attributes[i].format == VERTEXATTRIBUTEFORMAT_FLOAT32X2) {
+				type = VERTEXATTRIBUTETYPE_FLOAT;
+				size = 2;
+			} else if (vertexBufferLayout.attributes[i].format == VERTEXATTRIBUTEFORMAT_FLOAT32X3) {
+				type = VERTEXATTRIBUTETYPE_FLOAT;
+				size = 3;
+			} else {
+				std::cout << "UNSUPPORTED VERTEX ELEMENT" << std::endl;
+			}
+
+			openGLVertexAttributes[i].index = vertexBufferLayout.attributes[i].shaderLocation;
+			openGLVertexAttributes[i].size = size;
+			openGLVertexAttributes[i].type = toOpenGLType[type];
+			openGLVertexAttributes[i].normalized = toOpenGLNormalized[type];
+			openGLVertexAttributes[i].stride = vertexBufferLayout.arrayStride;
+			openGLVertexAttributes[i].pointer = (char *)nullptr + vertexBufferLayout.attributes[i].offset;
 		}
 	}
 
-	~OpenGLPixelShader() override
+	OpenGLVertexDescriptor(const OpenGLVertexDescriptor& other)
 	{
-		glDeleteShader(fragmentShader);
+		numVertexAttributes = other.numVertexAttributes;
+		openGLVertexAttributes = new OpenGLVertexAttribute[numVertexAttributes];
+		for (unsigned int i = 0; i < numVertexAttributes; i++)
+		{
+			openGLVertexAttributes[i] = other.openGLVertexAttributes[i];
+		}
 	}
 
-	int fragmentShader = 0;
+	~OpenGLVertexDescriptor() override
+	{
+		delete[] openGLVertexAttributes;
+		numVertexAttributes = 0;
+	}
+
+	unsigned int numVertexAttributes = 0;
+	OpenGLVertexAttribute *openGLVertexAttributes = nullptr;
 };
 
 class OpenGLPipelineParam;
@@ -76,12 +138,12 @@ class OpenGLPipeline : public Pipeline
 {
 public:
 
-	OpenGLPipeline(OpenGLVertexShader *vertexShader, OpenGLPixelShader *pixelShader)
+	OpenGLPipeline(OpenGLFunction *vertexFunction, OpenGLFunction *fragmentFunction, OpenGLVertexDescriptor *vertexDescriptor)
 	{
 		// link shaders
 		shaderProgram = glCreateProgram();
-		glAttachShader(shaderProgram, vertexShader->vertexShader);
-		glAttachShader(shaderProgram, pixelShader->fragmentShader);
+		glAttachShader(shaderProgram, vertexFunction->shader);
+		glAttachShader(shaderProgram, fragmentFunction->shader);
 		glLinkProgram(shaderProgram);
 
 		// check for linking errors
@@ -93,18 +155,30 @@ public:
 			glGetProgramInfoLog(shaderProgram, 512, NULL, infoLog);
 			std::cout << "ERROR::SHADER::PROGRAM::LINKING_FAILED\n" << infoLog << std::endl;
 		}
+
+		glGenVertexArrays(1, &vertexArrayObject);
+
+		this->vertexDescriptor = new OpenGLVertexDescriptor(*vertexDescriptor);
 	}
 
 	~OpenGLPipeline() override
 	{
+		delete vertexDescriptor;
+
+		glDeleteVertexArrays(1, &vertexArrayObject);
+
 		glDeleteProgram(shaderProgram);
 	}
 
 	PipelineParam *GetParam(const char *name) override;
 
-	int shaderProgram = 0;
+	unsigned int shaderProgram = 0;
 
 	std::map<std::string, OpenGLPipelineParam *> paramsByName;
+
+	unsigned int vertexArrayObject = 0;
+
+	OpenGLVertexDescriptor *vertexDescriptor = nullptr;
 };
 
 class OpenGLPipelineParam : public PipelineParam
@@ -167,117 +241,25 @@ PipelineParam *OpenGLPipeline::GetParam(const char *name)
 	return iter->second;
 }
 
-class OpenGLVertexBuffer : public VertexBuffer
+class OpenGLBuffer : public Buffer
 {
 public:
 
-	OpenGLVertexBuffer(long long size, const void *data)
+	OpenGLBuffer(const render::BufferType& bufferType, long long size, const void *data)
+	: Buffer(bufferType, size, data)
 	{
-		glGenBuffers(1, &VBO);
-		glBindBuffer(GL_ARRAY_BUFFER, VBO);
-		glBufferData(GL_ARRAY_BUFFER, size, data, GL_STATIC_DRAW); // always assuming static, for now
+		glGenBuffers(1, &BO);
+		glBindBuffer(bufferType == render::BUFFERTYPE_VERTEX ? GL_ARRAY_BUFFER : GL_ELEMENT_ARRAY_BUFFER, BO);
+		glBufferData(bufferType == render::BUFFERTYPE_VERTEX ? GL_ARRAY_BUFFER : GL_ELEMENT_ARRAY_BUFFER, size, data, GL_STATIC_DRAW); // always assuming static, for now
+		glBindBuffer(GL_ARRAY_BUFFER, 0);
 	}
 
-	~OpenGLVertexBuffer() override
+	~OpenGLBuffer() override
 	{
-		glDeleteBuffers(1, &VBO);
+		glDeleteBuffers(1, &BO);
 	}
 
-	unsigned int VBO = 0;
-};
-
-class OpenGLVertexDescription : public VertexDescription
-{
-public:
-
-	struct OpenGLVertexElement
-	{
-		GLuint index;
-		GLint size;
-		GLenum type;
-		GLboolean normalized;
-		GLsizei stride;
-		const GLvoid *pointer;
-	};
-
-	OpenGLVertexDescription(unsigned int _numVertexElements, const VertexElement *vertexElements) : numVertexElements(_numVertexElements)
-	{
-		static GLenum toOpenGLType[] = { GL_BYTE, GL_SHORT, GL_INT, GL_UNSIGNED_BYTE, GL_UNSIGNED_SHORT, GL_UNSIGNED_INT,
-			GL_BYTE, GL_SHORT, GL_INT, GL_UNSIGNED_BYTE, GL_UNSIGNED_SHORT, GL_UNSIGNED_INT, GL_HALF_FLOAT, GL_FLOAT, GL_DOUBLE };
-		static GLboolean toOpenGLNormalized[] = { GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE,
-			GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE, GL_FALSE, GL_FALSE };
-
-		openGLVertexElements = new OpenGLVertexElement[numVertexElements];
-		for(unsigned int i = 0; i < numVertexElements; i++)
-		{
-			openGLVertexElements[i].index = vertexElements[i].index;
-			openGLVertexElements[i].size = vertexElements[i].size;
-			openGLVertexElements[i].type = toOpenGLType[vertexElements[i].type];
-			openGLVertexElements[i].normalized = toOpenGLNormalized[vertexElements[i].type];
-			openGLVertexElements[i].stride = vertexElements[i].stride;
-			openGLVertexElements[i].pointer = (char *)nullptr + vertexElements[i].offset;
-		}
-	}
-
-	~OpenGLVertexDescription() override
-	{
-		delete[] openGLVertexElements;
-	}
-
-	unsigned int numVertexElements = 0;
-	OpenGLVertexElement *openGLVertexElements = nullptr;
-};
-
-class OpenGLVertexArray : public VertexArray
-{
-public:
-
-	OpenGLVertexArray(unsigned int numVertexBuffers, VertexBuffer **vertexBuffers, VertexDescription **vertexDescriptions)
-	{
-		glGenVertexArrays(1, &VAO);
-		glBindVertexArray(VAO);
-
-		for(unsigned int i = 0; i < numVertexBuffers; i++)
-		{
-			OpenGLVertexBuffer *vertexBuffer = reinterpret_cast<OpenGLVertexBuffer *>(vertexBuffers[i]);
-			OpenGLVertexDescription *vertexDescription = reinterpret_cast<OpenGLVertexDescription *>(vertexDescriptions[i]);
-
-			glBindBuffer(GL_ARRAY_BUFFER, vertexBuffer->VBO);
-
-			for(unsigned int j = 0; j < vertexDescription->numVertexElements; j++)
-			{
-				glEnableVertexAttribArray(vertexDescription->openGLVertexElements[j].index);
-				glVertexAttribPointer(vertexDescription->openGLVertexElements[j].index, vertexDescription->openGLVertexElements[j].size, vertexDescription->openGLVertexElements[j].type,
-					vertexDescription->openGLVertexElements[j].normalized, vertexDescription->openGLVertexElements[j].stride, vertexDescription->openGLVertexElements[j].pointer);
-			}
-		}
-	}
-
-	~OpenGLVertexArray() override
-	{
-		glDeleteVertexArrays(1, &VAO);
-	}
-
-	unsigned int VAO = 0;
-};
-
-class OpenGLIndexBuffer : public IndexBuffer
-{
-public:
-
-	OpenGLIndexBuffer(long long size, const void *data)
-	{
-		glGenBuffers(1, &IBO);
-		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBO);
-		glBufferData(GL_ELEMENT_ARRAY_BUFFER, size, data, GL_STATIC_DRAW); // always assuming static, for now
-	}
-
-	~OpenGLIndexBuffer() override
-	{
-		glDeleteBuffers(1, &IBO);
-	}
-
-	unsigned int IBO = 0;
+	unsigned int BO = 0;
 };
 
 class OpenGLTexture2D : public Texture2D
@@ -289,7 +271,7 @@ public:
 		glActiveTexture(GL_TEXTURE0);
 		glGenTextures(1, &texture);
 		glBindTexture(GL_TEXTURE_2D, texture);
-		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, width, height, 0, GL_RGBA, GL_UNSIGNED_BYTE, data);
 		glGenerateMipmap(GL_TEXTURE_2D);
 	}
 
@@ -351,7 +333,7 @@ public:
 		int				_backFaceRef				= 0,
 		unsigned int	_backFaceReadMask			= 0xFFFFFFFF,
 		unsigned int	_backFaceWriteMask			= 0xFFFFFFFF)
-		
+
 	{
 		static const GLenum compare_map[] = { GL_NEVER, GL_LESS, GL_EQUAL, GL_LEQUAL, GL_GREATER, GL_NOTEQUAL, GL_GEQUAL, GL_ALWAYS };
 		static const GLenum stencil_map[] = { GL_KEEP, GL_ZERO, GL_REPLACE, GL_INCR, GL_INCR_WRAP, GL_DECR, GL_DECR_WRAP, GL_INVERT };
@@ -381,13 +363,12 @@ public:
 		backFaceWriteMask = _backFaceWriteMask;
 	}
 
-
 	bool depthEnabled;
 	bool depthWriteEnabled;
 	float depthNear;
 	float depthFar;
 	GLenum depthFunc;
-	
+
 	bool frontFaceStencilEnabled;
 	GLenum	frontStencilFunc;
 	GLenum frontFaceStencilFail;
@@ -407,6 +388,48 @@ public:
 	GLuint backFaceWriteMask;
 };
 
+OpenGLLibrary::OpenGLLibrary(const char *vertexShaderSource, const char *fragmentShaderSource)
+: Library(vertexShaderSource, fragmentShaderSource)
+{
+	this->m_vertexShaderSource = new char[strlen(vertexShaderSource) + 1];
+	this->m_fragmentShaderSource = new char[strlen(fragmentShaderSource) + 1];
+	strcpy(this->m_vertexShaderSource, vertexShaderSource);
+	strcpy(this->m_fragmentShaderSource, fragmentShaderSource);
+}
+
+OpenGLLibrary::~OpenGLLibrary()
+{
+	delete[] m_vertexShaderSource;
+	delete[] m_fragmentShaderSource;
+}
+
+Function *OpenGLLibrary::CreateFunction(const FunctionType& functionType, const char *name)
+{
+	switch (functionType)
+	{
+		case FUNCTIONTYPE_VERTEX:
+		{
+			return new OpenGLFunction(functionType, m_vertexShaderSource);
+		}
+		break;
+		case FUNCTIONTYPE_FRAGMENT:
+		{
+			return new OpenGLFunction(functionType, m_fragmentShaderSource);
+		}
+		break;
+		default:
+		{
+			return nullptr;
+		}
+		break;
+	}
+}
+
+void OpenGLLibrary::DestroyFunction(Function *function)
+{
+	delete function;
+}
+
 OpenGLRenderDevice::OpenGLRenderDevice()
 {
 	m_DefaultRasterState = dynamic_cast<OpenGLRasterState *>(CreateRasterState());
@@ -416,29 +439,24 @@ OpenGLRenderDevice::OpenGLRenderDevice()
 	SetDepthStencilState(m_DefaultDepthStencilState);
 }
 
-VertexShader *OpenGLRenderDevice::CreateVertexShader(const char *code)
+OpenGLRenderDevice::~OpenGLRenderDevice()
 {
-	return new OpenGLVertexShader(code);
+	// Do nothing !!
 }
 
-void OpenGLRenderDevice::DestroyVertexShader(VertexShader *vertexShader)
+Library *OpenGLRenderDevice::CreateLibrary(const char *vertexShaderSource, const char *fragmentShaderSource)
 {
-	delete vertexShader;
+	return new OpenGLLibrary(vertexShaderSource, fragmentShaderSource);
 }
 
-PixelShader *OpenGLRenderDevice::CreatePixelShader(const char *code)
+void OpenGLRenderDevice::DestroyLibrary(Library *library)
 {
-	return new OpenGLPixelShader(code);
+	delete library;
 }
 
-void OpenGLRenderDevice::DestroyPixelShader(PixelShader *pixelShader)
+Pipeline *OpenGLRenderDevice::CreatePipeline(Function *vertexShader, Function *fragmentShader, VertexDescriptor *vertexDescriptor)
 {
-	delete pixelShader;
-}
-
-Pipeline *OpenGLRenderDevice::CreatePipeline(VertexShader *vertexShader, PixelShader *pixelShader)
-{
-	return new OpenGLPipeline(reinterpret_cast<OpenGLVertexShader *>(vertexShader), reinterpret_cast<OpenGLPixelShader *>(pixelShader));
+	return new OpenGLPipeline(reinterpret_cast<OpenGLFunction *>(vertexShader), reinterpret_cast<OpenGLFunction *>(fragmentShader), reinterpret_cast<OpenGLVertexDescriptor *>(vertexDescriptor));
 }
 
 void OpenGLRenderDevice::DestroyPipeline(Pipeline *pipeline)
@@ -448,57 +466,32 @@ void OpenGLRenderDevice::DestroyPipeline(Pipeline *pipeline)
 
 void OpenGLRenderDevice::SetPipeline(Pipeline *pipeline)
 {
-	glUseProgram(reinterpret_cast<OpenGLPipeline *>(pipeline)->shaderProgram);
+	m_Pipeline = reinterpret_cast<OpenGLPipeline *>(pipeline);
 }
 
-VertexBuffer *OpenGLRenderDevice::CreateVertexBuffer(long long size, const void *data)
+Buffer *OpenGLRenderDevice::CreateBuffer(const render::BufferType& bufferType, long long size, const void *data)
 {
-	return new OpenGLVertexBuffer(size, data);
+	return new OpenGLBuffer(bufferType, size, data);
 }
 
-void OpenGLRenderDevice::DestroyVertexBuffer(VertexBuffer *vertexBuffer)
+void OpenGLRenderDevice::DestroyBuffer(Buffer *buffer)
 {
-	delete vertexBuffer;
+	delete buffer;
 }
 
-VertexDescription *OpenGLRenderDevice::CreateVertexDescription(unsigned int numVertexElements, const VertexElement *vertexElements)
+void OpenGLRenderDevice::SetBuffer(Buffer *buffer)
 {
-	return new OpenGLVertexDescription(numVertexElements, vertexElements);
+	m_VertexBuffer = reinterpret_cast<OpenGLBuffer *>(buffer);
 }
 
-void OpenGLRenderDevice::DestroyVertexDescription(VertexDescription *vertexDescription)
+VertexDescriptor *OpenGLRenderDevice::CreateVertexDescriptor(const VertexBufferLayout& vertexBufferLayout)
 {
-	delete vertexDescription;
+	return new OpenGLVertexDescriptor(vertexBufferLayout);
 }
 
-VertexArray *OpenGLRenderDevice::CreateVertexArray(unsigned int numVertexBuffers, VertexBuffer **vertexBuffers, VertexDescription **vertexDescriptions)
+void OpenGLRenderDevice::DestroyVertexDescriptor(VertexDescriptor *vertexDescriptor)
 {
-	return new OpenGLVertexArray(numVertexBuffers, vertexBuffers, vertexDescriptions);
-}
-
-void OpenGLRenderDevice::DestroyVertexArray(VertexArray *vertexArray)
-{
-	delete vertexArray;
-}
-
-void OpenGLRenderDevice::SetVertexArray(VertexArray *vertexArray)
-{
-	glBindVertexArray(reinterpret_cast<OpenGLVertexArray *>(vertexArray)->VAO);
-}
-
-IndexBuffer *OpenGLRenderDevice::CreateIndexBuffer(long long size, const void *data)
-{
-	return new OpenGLIndexBuffer(size, data);
-}
-
-void OpenGLRenderDevice::DestroyIndexBuffer(IndexBuffer *indexBuffer)
-{
-	delete indexBuffer;
-}
-    
-void OpenGLRenderDevice::SetIndexBuffer(IndexBuffer *indexBuffer)
-{
-	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, reinterpret_cast<OpenGLIndexBuffer *>(indexBuffer)->IBO);
+	delete vertexDescriptor;
 }
 
 Texture2D *OpenGLRenderDevice::CreateTexture2D(int width, int height, const void *data)
@@ -610,17 +603,71 @@ void OpenGLRenderDevice::Clear(float red, float green, float blue, float alpha, 
 	glClearColor(red, green, blue, alpha);
 	glClearDepth(depth);
 	glClearStencil(stencil);
-	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT| GL_STENCIL_BUFFER_BIT);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 }
 
-void OpenGLRenderDevice::DrawTriangles(int offset, int count)
+void OpenGLRenderDevice::Draw(const PrimitiveType& primitiveType, int offset, int count)
 {
+	glBindBuffer(GL_ARRAY_BUFFER, reinterpret_cast<OpenGLBuffer *>(m_VertexBuffer)->BO);
+
+	glUseProgram(m_Pipeline->shaderProgram);
+	glBindVertexArray(m_Pipeline->vertexArrayObject);
+	OpenGLVertexDescriptor *vertexDescriptor = m_Pipeline->vertexDescriptor;
+	for(unsigned int j = 0; j < vertexDescriptor->numVertexAttributes; j++)
+	{
+		glEnableVertexAttribArray(vertexDescriptor->openGLVertexAttributes[j].index);
+		glVertexAttribPointer(vertexDescriptor->openGLVertexAttributes[j].index,
+							  vertexDescriptor->openGLVertexAttributes[j].size,
+							  vertexDescriptor->openGLVertexAttributes[j].type,
+							  vertexDescriptor->openGLVertexAttributes[j].normalized,
+							  vertexDescriptor->openGLVertexAttributes[j].stride,
+							  vertexDescriptor->openGLVertexAttributes[j].pointer);
+	}
+
 	glDrawArrays(GL_TRIANGLES, offset, count);
+
+	glBindVertexArray(0);
+	glUseProgram(0);
+
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
-void OpenGLRenderDevice::DrawTrianglesIndexed32(long long offset, int count)
+void OpenGLRenderDevice::DrawIndexed(const PrimitiveType& primitiveType, const IndexType& indexType, Buffer *indexBuffer, long long offset, int count)
 {
-	glDrawElements(GL_TRIANGLES, count, GL_UNSIGNED_INT, reinterpret_cast<const void *>(offset));
+	glBindBuffer(GL_ARRAY_BUFFER, reinterpret_cast<OpenGLBuffer *>(m_VertexBuffer)->BO);
+
+	glUseProgram(m_Pipeline->shaderProgram);
+	glBindVertexArray(m_Pipeline->vertexArrayObject);
+	OpenGLVertexDescriptor *vertexDescriptor = m_Pipeline->vertexDescriptor;
+	for(unsigned int j = 0; j < vertexDescriptor->numVertexAttributes; j++)
+	{
+		glEnableVertexAttribArray(vertexDescriptor->openGLVertexAttributes[j].index);
+		glVertexAttribPointer(vertexDescriptor->openGLVertexAttributes[j].index,
+							  vertexDescriptor->openGLVertexAttributes[j].size,
+							  vertexDescriptor->openGLVertexAttributes[j].type,
+							  vertexDescriptor->openGLVertexAttributes[j].normalized,
+							  vertexDescriptor->openGLVertexAttributes[j].stride,
+							  vertexDescriptor->openGLVertexAttributes[j].pointer);
+	}
+
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, reinterpret_cast<OpenGLBuffer *>(indexBuffer)->BO);
+	switch (indexType)
+	{
+		case INDEXTYPE_UINT16: {
+			glDrawElements(GL_TRIANGLES, count, GL_UNSIGNED_SHORT, reinterpret_cast<const void *>(offset));
+		}
+		break;
+		case INDEXTYPE_UINT32: {
+			glDrawElements(GL_TRIANGLES, count, GL_UNSIGNED_INT, reinterpret_cast<const void *>(offset));
+		}
+		break;
+	}
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
+
+	glBindVertexArray(0);
+	glUseProgram(0);
+
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
 }
 
 } // end namespace render
