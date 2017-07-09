@@ -1,196 +1,168 @@
 #pragma once
 
+#include <cstddef> // for size_t
+
 namespace render
 {
 
-// Encapsulates a vertex shader
-class VertexShader
+// Function Type
+enum FunctionType
 {
-public:
-
-	// virtual destructor to ensure subclasses have a virtual destructor
-	virtual ~VertexShader() {}
-
-protected:
-
-	// protected default constructor to ensure these are never created directly
-	VertexShader() {}
+	FUNCTIONTYPE_VERTEX,
+	FUNCTIONTYPE_FRAGMENT
 };
 
-// Encapsulates a pixel shader
-class PixelShader
+// Encapsulates a function
+class Function
 {
 public:
 
 	// virtual destructor to ensure subclasses have a virtual destructor
-	virtual ~PixelShader() {}
+	virtual ~Function() {}
 
 protected:
 
 	// protected default constructor to ensure these are never created directly
-	PixelShader() {}
+	Function(const FunctionType& functionType, const char *code) {}
 };
 
-// Encapsulates a shader pipeline uniform parameter
-class PipelineParam
+// Encapsulates a library
+class Library
 {
 public:
 
 	// virtual destructor to ensure subclasses have a virtual destructor
-	virtual ~PipelineParam() {}
+	virtual ~Library() {}
 
-	virtual void SetAsInt(int value) = 0;
+	// Create a shader from the supplied code; code is assumed to be GLSL for now.
+	virtual Function *CreateFunction(const FunctionType& functionType, const char *code) = 0;
 
-	virtual void SetAsFloat(float value) = 0;
-
-	virtual void SetAsMat4(const float *value) = 0;
-
-	virtual void SetAsIntArray(int count, const int *values) = 0;
-
-	virtual void SetAsFloatArray(int count, const float *values) = 0;
-
-	virtual void SetAsMat4Array(int count, const float *values) = 0;
+	// Destroy a shader
+	virtual void DestroyFunction(Function *function) = 0;
 
 protected:
-
 	// protected default constructor to ensure these are never created directly
-	PipelineParam() {}
-};
-
-// Encapsulates a shader pipeline
-class Pipeline
-{
-public:
-
-	// virtual destructor to ensure subclasses have a virtual destructor
-	virtual ~Pipeline() {}
-
-	virtual PipelineParam *GetParam(const char *name) = 0;
-
-protected:
-
-	// protected default constructor to ensure these are never created directly
-	Pipeline() {}
-};
-
-// Encapsulates a vertex buffer
-class VertexBuffer
-{
-public:
-
-	// virtual destructor to ensure subclasses have a virtual destructor
-	virtual ~VertexBuffer() {}
-
-protected:
-
-	// protected default constructor to ensure these are never created directly
-	VertexBuffer() {}
+	Library(const char *vertexShaderSource, const char *fragmentShaderSource) {}
 };
 
 // Encapsulates a vertex buffer semantic description
-class VertexDescription
+class VertexDescriptor
 {
 public:
 
 	// virtual destructor to ensure subclasses have a virtual destructor
-	virtual ~VertexDescription() {}
+	virtual ~VertexDescriptor() {}
 
 protected:
 
 	// protected default constructor to ensure these are never created directly
-	VertexDescription() {}
+	VertexDescriptor() {}
 };
 
-// Encapsulates a collection of vertex buffers and their semantic descriptions
-class VertexArray
+// Encapsulates the render pipeline state (shaders + vertex descriptor + raster state)
+class RenderPipelineState
 {
 public:
 
 	// virtual destructor to ensure subclasses have a virtual destructor
-	virtual ~VertexArray() {}
+	virtual ~RenderPipelineState() {}
+
+protected:
+
+	// protected default constructor to ensure these are never created
+	// directly
+	RenderPipelineState() {}
+};
+
+// Buffer Type
+enum BufferType
+{
+	BUFFERTYPE_VERTEX,
+	BUFFERTYPE_INDEX
+};
+
+// Encapsulates a buffer
+class Buffer
+{
+public:
+
+	// virtual destructor to ensure subclasses have a virtual destructor
+	virtual ~Buffer() {}
 
 protected:
 
 	// protected default constructor to ensure these are never created directly
-	VertexArray() {}
-};
-    
-// Encapsulates an index buffer
-class IndexBuffer
-{
-public:
-
-    // virtual destructor to ensure subclasses have a virtual destructor
-    virtual ~IndexBuffer() {}
-        
-protected:
-        
-    // protected default constructor to ensure these are never created directly
-    IndexBuffer() {}
-};
+	Buffer(const BufferType& bufferType, long long size, const void *data) {}
+ };
 
 // Encapsulates a 2D texture
 class Texture2D
 {
 public:
 
-    // virtual destructor to ensure subclasses have a virtual destructor
-    virtual ~Texture2D() {}
-        
-protected:
-        
-    // protected default constructor to ensure these are never created directly
-    Texture2D() {}
-};
-
-// Describes a vertex element's type
-enum VertexElementType
-{
-	VERTEXELEMENTTYPE_BYTE = 0,
-	VERTEXELEMENTTYPE_SHORT,
-	VERTEXELEMENTTYPE_INT,
-
-	VERTEXELEMENTTYPE_UNSIGNED_BYTE,	
-	VERTEXELEMENTTYPE_UNSIGNED_SHORT,
-	VERTEXELEMENTTYPE_UNSIGNED_INT,
-
-	VERTEXELEMENTTYPE_BYTE_NORMALIZE,
-	VERTEXELEMENTTYPE_SHORT_NORMALIZE,
-	VERTEXELEMENTTYPE_INT_NORMALIZE,
-
-	VERTEXELEMENTTYPE_UNSIGNED_BYTE_NORMALIZE,	
-	VERTEXELEMENTTYPE_UNSIGNED_SHORT_NORMALIZE,
-	VERTEXELEMENTTYPE_UNSIGNED_INT_NORMALIZE,
-
-	VERTEXELEMENTTYPE_HALF_FLOAT,
-	VERTEXELEMENTTYPE_FLOAT,
-	VERTEXELEMENTTYPE_DOUBLE
-};
-
-// Describes a vertex element within a vertex buffer
-struct VertexElement
-{
-	unsigned int index; // location binding for vertex element
-	VertexElementType type; // type of vertex element
-	int size; // number of components
-	int stride; // number of bytes between each successive element (leave zero for this to be assumed to be size times size of type)
-	long long offset; // offset where first occurrence of this vertex element resides in the buffer
-};
-
-// Encapsulates the rasterizer state
-class RasterState
-{
-public:
-
 	// virtual destructor to ensure subclasses have a virtual destructor
-	virtual ~RasterState() {}
-        
+	virtual ~Texture2D() {}
+
 protected:
-        
-	// protected default constructor to ensure these are never created
-	// directly
-	RasterState() {}
+
+	// protected default constructor to ensure these are never created directly
+	Texture2D() {}
 };
+
+// Describes a vertex attribute's type
+enum VertexAttributeFormat
+{
+	VERTEXATTRIBUTEFORMAT_UNDEFINED = 0x00000000,
+	VERTEXATTRIBUTEFORMAT_UINT8X2 = 0x00000001,
+	VERTEXATTRIBUTEFORMAT_UINT8X4 = 0x00000002,
+	VERTEXATTRIBUTEFORMAT_SINT8X2 = 0x00000003,
+	VERTEXATTRIBUTEFORMAT_SINT8X4 = 0x00000004,
+	VERTEXATTRIBUTEFORMAT_UNORM8X2 = 0x00000005,
+	VERTEXATTRIBUTEFORMAT_UNORM8X4 = 0x00000006,
+	VERTEXATTRIBUTEFORMAT_SNORM8X2 = 0x00000007,
+	VERTEXATTRIBUTEFORMAT_SNORM8X4 = 0x00000008,
+	VERTEXATTRIBUTEFORMAT_UINT16X2 = 0x00000009,
+	VERTEXATTRIBUTEFORMAT_UINT16X4 = 0x0000000A,
+	VERTEXATTRIBUTEFORMAT_SINT16X2 = 0x0000000B,
+	VERTEXATTRIBUTEFORMAT_SINT16X4 = 0x0000000C,
+	VERTEXATTRIBUTEFORMAT_UNORM16X2 = 0x0000000D,
+	VERTEXATTRIBUTEFORMAT_UNORM16X4 = 0x0000000E,
+	VERTEXATTRIBUTEFORMAT_SNORM16X2 = 0x0000000F,
+	VERTEXATTRIBUTEFORMAT_SNORM16X4 = 0x00000010,
+	VERTEXATTRIBUTEFORMAT_FLOAT16X2 = 0x00000011,
+	VERTEXATTRIBUTEFORMAT_FLOAT16X4 = 0x00000012,
+	VERTEXATTRIBUTEFORMAT_FLOAT32 = 0x00000013,
+	VERTEXATTRIBUTEFORMAT_FLOAT32X2 = 0x00000014,
+	VERTEXATTRIBUTEFORMAT_FLOAT32X3 = 0x00000015,
+	VERTEXATTRIBUTEFORMAT_FLOAT32X4 = 0x00000016,
+	VERTEXATTRIBUTEFORMAT_UINT32 = 0x00000017,
+	VERTEXATTRIBUTEFORMAT_UINT32X2 = 0x00000018,
+	VERTEXATTRIBUTEFORMAT_UINT32X3 = 0x00000019,
+	VERTEXATTRIBUTEFORMAT_UINT32X4 = 0x0000001A,
+	VERTEXATTRIBUTEFORMAT_SINT32 = 0x0000001B,
+	VERTEXATTRIBUTEFORMAT_SINT32X2 = 0x0000001C,
+	VERTEXATTRIBUTEFORMAT_SINT32X3 = 0x0000001D,
+	VERTEXATTRIBUTEFORMAT_SINT32X4 = 0x0000001E,
+	VERTEXATTRIBUTEFORMAT_FORCE32 = 0x7FFFFFFF
+};
+
+// Describes a vertex attribute within a vertex buffer
+struct VertexAttribute
+{
+	VertexAttributeFormat format; //  type of vertex attribute and number of components
+	long long offset; // offset where first occurrence of this vertex attribute resides in the buffer
+	unsigned int shaderLocation; // location binding for vertex attribute // previously aka index
+};
+
+// Describes a vertex buffer layout
+struct VertexBufferLayout
+{
+	unsigned int arrayStride;
+	unsigned int attributeCount;
+	VertexAttribute const * attributes;
+};
+
+
 
 enum Winding
 {
@@ -215,20 +187,6 @@ enum RasterMode
 	RASTERMODE_MAX
 };
 
-// Encapsulates the depth/stencil state
-class DepthStencilState
-{
-public:
-
-	// virtual destructor to ensure subclasses have a virtual destructor
-	virtual ~DepthStencilState() {}
-        
-protected:
-        
-	// protected default constructor to ensure these are never created
-	// directly
-	DepthStencilState() {}
-};
 
 enum Compare
 {
@@ -288,6 +246,144 @@ enum StencilAction
 	STENCIL_MAX
 };
 
+// Primitive Type
+enum PrimitiveType
+{
+	PRIMITIVETYPE_POINT = 0,
+	PRIMITIVETYPE_LINE = 1,
+	PRIMITIVETYPE_LINESTRIP = 2,
+	PRIMITIVETYPE_TRIANGLE = 3,
+	PRIMITIVETYPE_TRIANGLESTRIP = 4,
+};
+
+// Index Type
+enum IndexType {
+	INDEXTYPE_UINT16 = 0,
+	INDEXTYPE_UINT32 = 1,
+};
+
+enum Filter {
+	FILTER_NEAREST = 0,
+	FILTER_LINEAR = 1
+};
+
+enum AddressMode {
+	ADDRESS_CLAMPTOEDGE = 0,
+	ADDRESS_REPEAT = 1,
+	ADDRESS_MIRROREDREPEAT = 2
+};
+
+// Encapsulates the depth/stencil state
+class DepthStencilState
+{
+public:
+
+	// virtual destructor to ensure subclasses have a virtual destructor
+	virtual ~DepthStencilState() {}
+
+protected:
+
+	// protected default constructor to ensure these are never created
+	// directly
+	DepthStencilState() {}
+};
+
+class SamplerState
+{
+public:
+	virtual ~SamplerState() {}
+
+protected:
+	SamplerState() {}
+};
+
+class Drawable
+{
+public:
+	virtual ~Drawable() = default;
+	virtual Texture2D* GetTexture() = 0;
+	virtual void GetSize(int& width, int& height) = 0;
+};
+
+// Forward declarations
+class CommandBuffer;
+class RenderCommandEncoder;
+struct RenderPassDescriptor;
+
+class CommandQueue
+{
+public:
+	virtual ~CommandQueue() {}
+	virtual CommandBuffer* CreateCommandBuffer() = 0;
+protected:
+	CommandQueue() {}
+};
+
+class CommandBuffer
+{
+public:
+	virtual ~CommandBuffer() {}
+	virtual RenderCommandEncoder* CreateRenderCommandEncoder(const RenderPassDescriptor& desc) = 0;
+	virtual void Present(Drawable* drawable) = 0;
+	virtual void Commit() = 0;
+protected:
+	CommandBuffer() {}
+};
+
+struct RenderPassDescriptor
+{
+	struct ColorAttachment
+	{
+		Texture2D* texture = nullptr;
+		enum LoadAction { LoadAction_Clear, LoadAction_Load, LoadAction_DontCare };
+		LoadAction loadAction = LoadAction_Clear;
+		float clearColor[4] = {0.0f, 0.0f, 0.0f, 1.0f};
+	};
+
+	struct DepthAttachment
+	{
+		Texture2D* texture = nullptr;
+		enum LoadAction { LoadAction_Clear, LoadAction_Load, LoadAction_DontCare };
+		LoadAction loadAction = LoadAction_Clear;
+		float clearDepth = 1.0f;
+	};
+
+	ColorAttachment colorAttachments[8]; // Support up to 8 color attachments
+	int colorAttachmentCount = 1;
+	DepthAttachment depthAttachment;
+};
+
+class RenderCommandEncoder
+{
+public:
+	virtual ~RenderCommandEncoder() {}
+
+	// Pipeline and state
+	virtual void SetRenderPipelineState(RenderPipelineState* renderPipelineState) = 0;
+	virtual void SetDepthStencilState(DepthStencilState* depthStencilState) = 0;
+
+	// Resource binding
+	virtual void SetVertexBuffer(Buffer* buffer, unsigned int offset, unsigned int index) = 0;
+	virtual void SetTexture2D(Texture2D* texture, unsigned int index) = 0;
+	virtual void SetSamplerState(SamplerState* sampler, unsigned int index) = 0;
+
+	// Metal-style parameter setting (similar to setVertexBytes/setFragmentBytes)
+	virtual void SetVertexBytes(const void* data, size_t size, unsigned int index) = 0;
+	virtual void SetFragmentBytes(const void* data, size_t size, unsigned int index) = 0;
+
+	// Drawing
+	virtual void Draw(PrimitiveType primitiveType, unsigned int vertexStart, unsigned int vertexCount) = 0;
+	virtual void DrawIndexed(PrimitiveType primitiveType, unsigned int indexCount, IndexType indexType, unsigned int indexOffset, unsigned int vertexOffset, Buffer* indexBuffer) = 0;
+
+	// End the encoder
+	virtual void EndEncoding() = 0;
+
+	virtual void SetViewport(int x, int y, int width, int height) = 0;
+
+protected:
+	RenderCommandEncoder() {}
+};
+
 // Encapsulates the render device API.
 class RenderDevice
 {
@@ -296,56 +392,32 @@ public:
 	// virtual destructor to ensure subclasses have a virtual destructor
 	virtual ~RenderDevice() {}
 
-	// Create a vertex shader from the supplied code; code is assumed to be GLSL for now.
-	virtual VertexShader *CreateVertexShader(const char *code) = 0;
+	// Create a library from the supplied code; code is assumed to be GLSL for now.
+	virtual Library *CreateLibrary(const char *vertexShaderSource, const char *fragmentShaderSource) = 0;
 
-	// Destroy a vertex shader
-	virtual void DestroyVertexShader(VertexShader *vertexShader) = 0;
+	// Destroy a library
+	virtual void DestroyLibrary(Library *library) = 0;
 
-	// Create a pixel shader from the supplied code; code is assumed to be GLSL for now.
-	virtual PixelShader *CreatePixelShader(const char *code) = 0;
+	// Create a render pipeline state (Metal-style: combines shaders, vertex descriptor, and raster state)
+	virtual RenderPipelineState *CreateRenderPipelineState(Function *vertexShader, Function *fragmentShader, VertexDescriptor *vertexDescriptor, bool cullEnabled = true, Winding frontFace = WINDING_CCW, Face cullFace = FACE_BACK, RasterMode rasterMode = RASTERMODE_FILL) = 0;
 
-	// Destroy a pixel shader
-	virtual void DestroyPixelShader(PixelShader *pixelShader) = 0;
+	// Destroy a render pipeline state
+	virtual void DestroyRenderPipelineState(RenderPipelineState *renderPipelineState) = 0;
 
-	// Create a linked shader pipeline given a vertex and pixel shader
-	virtual Pipeline *CreatePipeline(VertexShader *vertexShader, PixelShader *pixelShader) = 0;
+	// Create a buffer
+	virtual Buffer *CreateBuffer(const render::BufferType& bufferType, long long size, const void *data = nullptr) = 0;
 
-	// Destroy a shader pipeline
-	virtual void DestroyPipeline(Pipeline *pipeline) = 0;
+	// Destroy a buffer
+	virtual void DestroyBuffer(Buffer *buffer) = 0;
 
-	// Set a shader pipeline as active for subsequent draw commands
-	virtual void SetPipeline(Pipeline *pipeline) = 0;
+	// Set a buffer
+	virtual void SetBuffer(Buffer *buffer) = 0;
 
-	// Create a vertex buffer
-	virtual VertexBuffer *CreateVertexBuffer(long long size, const void *data = nullptr) = 0;
+	// Create a vertex descriptor given a vertex buffer layout
+	virtual VertexDescriptor *CreateVertexDescriptor(const VertexBufferLayout& vertexBufferLayout) = 0;
 
-	// Destroy a vertex buffer
-	virtual void DestroyVertexBuffer(VertexBuffer *vertexBuffer) = 0;
-
-	// Create a vertex description given an array of VertexElement structures
-	virtual VertexDescription *CreateVertexDescription(unsigned int numVertexElements, const VertexElement *vertexElements) = 0;
-
-	// Destroy a vertex description
-	virtual void DestroyVertexDescription(VertexDescription *vertexDescription) = 0;
-
-	// Create a vertex array given an array of vertex buffers and associated vertex descriptions; the arrays must be the same size.
-	virtual VertexArray *CreateVertexArray(unsigned int numVertexBuffers, VertexBuffer **vertexBuffers, VertexDescription **vertexDescriptions) = 0;
-
-	// Destroy a vertex array
-	virtual void DestroyVertexArray(VertexArray *vertexArray) = 0;
-
-	// Set a vertex array as active for subsequent draw commands
-	virtual void SetVertexArray(VertexArray *vertexArray) = 0;
-
-    // Create an index buffer
-    virtual IndexBuffer *CreateIndexBuffer(long long size, const void *data = nullptr) = 0;
-
-    // Destroy an index buffer
-    virtual void DestroyIndexBuffer(IndexBuffer *indexBuffer) = 0;
-    
-    // Set an index buffer as active for subsequent draw commands
-    virtual void SetIndexBuffer(IndexBuffer *indexBuffer) = 0;
+	// Destroy a vertex descriptor
+	virtual void DestroyVertexDescriptor(VertexDescriptor *vertexDescriptor) = 0;
 
 	// Create a 2D texture.
 	//
@@ -353,22 +425,13 @@ public:
 	// 8 bits are used for each of the red, green, and blue
 	// components, from lowest to highest byte order. The
 	// most significant byte is ignored.
-    virtual Texture2D *CreateTexture2D(int width, int height, const void *data = nullptr) = 0;
+	virtual Texture2D *CreateTexture2D(int width, int height, const void *data = nullptr) = 0;
 
-    // Destroy a 2D texture
-    virtual void DestroyTexture2D(Texture2D *texture2D) = 0;
-    
-    // Set a 2D texture as active on a slot for subsequent draw commands
-    virtual void SetTexture2D(unsigned int slot, Texture2D *texture2D) = 0;
+	// Destroy a 2D texture
+	virtual void DestroyTexture2D(Texture2D *texture2D) = 0;
 
-	// Create a raster state.
-	virtual RasterState *CreateRasterState(bool cullEnabled = true, Winding frontFace = WINDING_CCW, Face cullFace = FACE_BACK, RasterMode rasterMode = RASTERMODE_FILL) = 0;
-
-	// Destroy a raster state.
-	virtual void DestroyRasterState(RasterState *rasterState) = 0;
-
-	 // Set a raster state for subsequent draw commands
-	virtual void SetRasterState(RasterState *rasterState) = 0;
+	// Set a 2D texture as active on a slot for subsequent draw commands
+	virtual void SetTexture2D(unsigned int slot, Texture2D *texture2D) = 0;
 
 	// Create a depth/stencil state.
 	virtual DepthStencilState *CreateDepthStencilState(bool depthEnabled = true,
@@ -394,15 +457,34 @@ public:
 	// Set a depth/stencil state for subsequent draw commands
 	virtual void SetDepthStencilState(DepthStencilState *depthStencilState) = 0;
 
-    // Clear the default render target's color buffer, depth buffer, and stencil buffer to the specified values
+	// todo
+	virtual SamplerState *CreateSamplerState(Filter minFilter = FILTER_LINEAR,
+		Filter magFilter = FILTER_LINEAR,
+		AddressMode sAddressMode = ADDRESS_REPEAT,
+		AddressMode tAddressMode = ADDRESS_REPEAT) = 0;
+
+	// todo
+	virtual void DestroySamplerState(SamplerState *sampler) = 0;
+
+	// todo
+	virtual void SetSamplerState(unsigned int slot, SamplerState *sampler) = 0;
+
+	// Clear the default render target's color buffer, depth buffer, and stencil buffer to the specified values
 	virtual void Clear(float red = 0.0f, float green = 0.0f, float blue = 0.0f, float alpha = 1.0f, float depth = 1.0f, int stencil = 0) = 0;
 
-	// Draw a collection of triangles using the currently active shader pipeline and vertex array data
-	virtual void DrawTriangles(int offset, int count) = 0;
+	// Draw a collection of primitives using the currently active shader pipeline and vertex array data
+	virtual void Draw(const PrimitiveType& primitiveType, int offset, int count) = 0;
 
-    // Draw a collection of triangles using the currently active shader pipeline, vertex array data,
-    // and index buffer
-    virtual void DrawTrianglesIndexed32(long long offset, int count) = 0;
+	// Draw a collection of primitives using the currently active shader pipeline, vertex array data, and index buffer
+	virtual void DrawIndexed(const PrimitiveType& primitiveType, const IndexType& indexType, Buffer *indexBuffer, long long offset, int count) = 0;
+
+	// Command queue creation
+	virtual CommandQueue* CreateCommandQueue() = 0;
+	virtual void DestroyCommandQueue(CommandQueue* queue) = 0;
+
+	// Drawable creation (for presentation)
+	virtual Drawable* GetNextDrawable() = 0;
+	virtual void DestroyDrawable(Drawable* drawable) = 0;
 };
 
 // Creates a RenderDevice

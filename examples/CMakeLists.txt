@@ -13,8 +13,8 @@ elseif (APPLE)
     set_source_files_properties(example.icns PROPERTIES MACOSX_PACKAGE_LOCATION "Resources")
 endif()
 
-set(GLAD "${GLFW_SOURCE_DIR}/deps/glad/glad.h"
-         "${GLFW_SOURCE_DIR}/deps/glad.c")
+set(GLAD "${GLFW_SOURCE_DIR}/deps/glad/gl.h"
+         "${GLFW_SOURCE_DIR}/deps/glad_gl.c")
 
 add_executable(triangle WIN32 MACOSX_BUNDLE triangle.cpp ${ICON} ${GLAD})
 add_executable(cube WIN32 MACOSX_BUNDLE cube.cpp image888.c ${ICON} ${GLAD})

@@ -1,3 +1,4 @@
+#include <cstdio>
 #include <render_device/platform.h>
 
 #include <render_device/render_device.h>
@@ -8,12 +9,19 @@ const char *vertexShaderSource = "#version 410 core\n"
 	"{\n"
 	"   gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);\n"
 	"}\0";
-const char *pixelShaderSource = "#version 410 core\n"
+const char *fragmentShaderSource = "#version 410 core\n"
 	"out vec4 FragColor;\n"
 	"void main()\n"
 	"{\n"
 	"   FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);\n"
 	"}\n\0";
+
+struct Vertex
+{
+	float x, y, z;
+};
+
+#define COUNT_OF(arr)	(sizeof(arr) / sizeof(*arr))
 
 int main()
 {
@@ -21,8 +29,7 @@ int main()
 
 	// window creation
 	// --------------------
-	platform::PLATFORM_WINDOW_REF window =
-		platform::CreatePlatformWindow(800, 600, "Triangle");
+	platform::PLATFORM_WINDOW_REF window = platform::CreatePlatformWindow(800, 600, "Triangle");
 	if(!window)
 	{
 		platform::TerminatePlatform();
@@ -31,57 +38,98 @@ int main()
 
 	render::RenderDevice *renderDevice = render::CreateRenderDevice();
 
+	// Create command queue
+	render::CommandQueue *commandQueue = renderDevice->CreateCommandQueue();
+
 	// build and compile our shader program
 	// ------------------------------------
+	render::Library *library = renderDevice->CreateLibrary(vertexShaderSource, fragmentShaderSource);
+
 	// vertex shader
-	render::VertexShader *vertexShader = renderDevice->CreateVertexShader(vertexShaderSource);
+	render::Function *vertexShader = library->CreateFunction(render::FUNCTIONTYPE_VERTEX, "main");
 
 	// fragment shader
-	render::PixelShader *pixelShader = renderDevice->CreatePixelShader(pixelShaderSource);
+	render::Function *fragmentShader = library->CreateFunction(render::FUNCTIONTYPE_FRAGMENT, "main");
 
-	// link shaders
-	render::Pipeline *pipeline = renderDevice->CreatePipeline(vertexShader, pixelShader);
+	render::VertexAttribute vertexAttributes[] = {
+		{ .format = render::VERTEXATTRIBUTEFORMAT_FLOAT32X3, .offset = 0, .shaderLocation = 0 },
+	};
 
-	renderDevice->DestroyVertexShader(vertexShader);
-	renderDevice->DestroyPixelShader(pixelShader);
+	render::VertexBufferLayout vertexBufferLayout;
+	vertexBufferLayout.arrayStride = sizeof(Vertex);
+	vertexBufferLayout.attributeCount = COUNT_OF(vertexAttributes);
+	vertexBufferLayout.attributes = vertexAttributes;
+
+	render::VertexDescriptor *vertexDescriptor = renderDevice->CreateVertexDescriptor(vertexBufferLayout);
+
+	// Create render pipeline state (Metal-style: combines shaders, vertex descriptor, and raster state)
+	render::RenderPipelineState *renderPipelineState = renderDevice->CreateRenderPipelineState(vertexShader, fragmentShader, vertexDescriptor, false, render::WINDING_CW);
+
+	library->DestroyFunction(vertexShader);
+	library->DestroyFunction(fragmentShader);
+	renderDevice->DestroyLibrary(library);
+
+	renderDevice->DestroyVertexDescriptor(vertexDescriptor);
 
 	// set up vertex data (and buffer(s)) and configure vertex attributes
 	// ------------------------------------------------------------------
-	float vertices[] = {
-		-0.5f, -0.5f, 0.0f, // left  
-		 0.5f, -0.5f, 0.0f, // right 
-		 0.0f,  0.5f, 0.0f  // top   
-	}; 
+	Vertex vertices[] = {
+		{ -0.5f, +0.5f, 0.0f },
+		{ -0.5f, -0.5f, 0.0f },
+		{ +0.5f, +0.5f, 0.0f },
+		{ +0.5f, -0.5f, 0.0f },
+	};
 
-	render::VertexBuffer *vertexBuffer = renderDevice->CreateVertexBuffer(sizeof(vertices), vertices);
-
-	render::VertexElement vertexElement = { 0, render::VERTEXELEMENTTYPE_FLOAT, 3, 0, 0, };
-	render::VertexDescription *vertexDescription = renderDevice->CreateVertexDescription(1, &vertexElement);
-
-	render::VertexArray *vertexArray = renderDevice->CreateVertexArray(1, &vertexBuffer, &vertexDescription);
+	render::Buffer *vertexBuffer = renderDevice->CreateBuffer(render::BUFFERTYPE_VERTEX, sizeof(vertices), vertices);
 
 	// render loop
 	// -----------
 	while(platform::PollPlatformWindow(window))
 	{
-		// render
-		// ------
-		renderDevice->Clear(0.2f, 0.3f, 0.3f, 1.0f, 1.0f);
+		// Get next drawable
+		render::Drawable *drawable = renderDevice->GetNextDrawable();
 
-		// draw our first triangle
-		renderDevice->SetPipeline(pipeline);
-		renderDevice->SetVertexArray(vertexArray);
-		renderDevice->DrawTriangles(0, 3);
+		// Create command buffer
+		render::CommandBuffer *commandBuffer = commandQueue->CreateCommandBuffer();
 
-		platform::PresentPlatformWindow(window);
+		// Set up render pass descriptor
+		render::RenderPassDescriptor passDesc;
+		passDesc.colorAttachments[0].texture = drawable->GetTexture();
+		passDesc.colorAttachments[0].loadAction = render::RenderPassDescriptor::ColorAttachment::LoadAction_Clear;
+		passDesc.colorAttachments[0].clearColor[0] = 0.5f; // red
+		passDesc.colorAttachments[0].clearColor[1] = 0.5f; // green
+		passDesc.colorAttachments[0].clearColor[2] = 0.5f; // blue
+		passDesc.colorAttachments[0].clearColor[3] = 1.0f; // alpha
+
+		// Create render command encoder
+		render::RenderCommandEncoder *encoder = commandBuffer->CreateRenderCommandEncoder(passDesc);
+
+		// Record rendering commands
+		encoder->SetRenderPipelineState(renderPipelineState);
+		encoder->SetVertexBuffer(vertexBuffer, 0, 0);
+
+		// Get viewport size from drawable
+		int width, height;
+		drawable->GetSize(width, height);
+		encoder->SetViewport(0, 0, width, height);
+
+		encoder->Draw(render::PRIMITIVETYPE_TRIANGLESTRIP, 0, 4);
+
+		encoder->EndEncoding();
+
+		// Present and commit
+		commandBuffer->Present(drawable);
+		commandBuffer->Commit();
+
+		// Clean up drawable
+		renderDevice->DestroyDrawable(drawable);
 	}
 
 	// optional: de-allocate all resources once they've outlived their purpose:
 	// ------------------------------------------------------------------------
-	renderDevice->DestroyVertexArray(vertexArray);
-	renderDevice->DestroyVertexDescription(vertexDescription);
-	renderDevice->DestroyVertexBuffer(vertexBuffer);
-	renderDevice->DestroyPipeline(pipeline);
+	renderDevice->DestroyBuffer(vertexBuffer);
+	renderDevice->DestroyRenderPipelineState(renderPipelineState);
+	renderDevice->DestroyCommandQueue(commandQueue);
 
 	platform::TerminatePlatform();
 

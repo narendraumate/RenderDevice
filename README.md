@@ -8,6 +8,8 @@ See http://amesgames.net/2017/06/27/c-rendering-engine-i-abstracting-the-render-
 
 * C++11 Compiler
 * CMake 3.2 or greater
+* Linux
+    * apt install cmake libgl-dev libx11-dev libxi-dev libxinerama-dev libxrandr-dev libxcursor-dev
 
 ## Features
 

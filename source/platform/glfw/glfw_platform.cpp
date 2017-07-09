@@ -1,13 +1,11 @@
 #include "render_device/platform.h"
 
-#include <glad/glad.h>
+#include <glad/gl.h>
 #include <GLFW/glfw3.h>
 
 #define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
 #include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/matrix_access.hpp>
-#include <glm/gtx/norm.hpp>
 #include <glm/gtc/quaternion.hpp>
 
 #include <iostream>
@@ -190,7 +188,7 @@ PLATFORM_WINDOW_REF CreatePlatformWindow(int width, int height, const char *titl
 
 	// glad: load all OpenGL function pointers
     // ---------------------------------------
-    if(!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
+    if(!gladLoadGL((GLADloadfunc)glfwGetProcAddress))
     {
         std::cout << "Failed to initialize GLAD" << std::endl;
         return 0;
