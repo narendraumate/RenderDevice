@@ -8,12 +8,19 @@ const char *vertexShaderSource = "#version 410 core\n"
 	"{\n"
 	"   gl_Position = vec4(aPos.x, aPos.y, aPos.z, 1.0);\n"
 	"}\0";
-const char *pixelShaderSource = "#version 410 core\n"
+const char *fragmentShaderSource = "#version 410 core\n"
 	"out vec4 FragColor;\n"
 	"void main()\n"
 	"{\n"
 	"   FragColor = vec4(1.0f, 0.5f, 0.2f, 1.0f);\n"
 	"}\n\0";
+
+struct Vertex
+{
+	float x, y, z;
+};
+
+#define COUNT_OF(arr)	(sizeof(arr) / sizeof(*arr))
 
 int main()
 {
@@ -21,8 +28,7 @@ int main()
 
 	// window creation
 	// --------------------
-	platform::PLATFORM_WINDOW_REF window =
-		platform::CreatePlatformWindow(800, 600, "Triangle");
+	platform::PLATFORM_WINDOW_REF window = platform::CreatePlatformWindow(800, 600, "Triangle");
 	if(!window)
 	{
 		platform::TerminatePlatform();
@@ -33,32 +39,43 @@ int main()
 
 	// build and compile our shader program
 	// ------------------------------------
+	render::Library *library = renderDevice->CreateLibrary(vertexShaderSource, fragmentShaderSource);
+
 	// vertex shader
-	render::VertexShader *vertexShader = renderDevice->CreateVertexShader(vertexShaderSource);
+	render::Function *vertexShader = library->CreateFunction(render::FUNCTIONTYPE_VERTEX, "main");
 
 	// fragment shader
-	render::PixelShader *pixelShader = renderDevice->CreatePixelShader(pixelShaderSource);
+	render::Function *fragmentShader = library->CreateFunction(render::FUNCTIONTYPE_FRAGMENT, "main");
 
-	// link shaders
-	render::Pipeline *pipeline = renderDevice->CreatePipeline(vertexShader, pixelShader);
+	render::VertexAttribute vertexAttributes[] = {
+		{ .format = render::VERTEXATTRIBUTEFORMAT_FLOAT32X3, .offset = 0, .shaderLocation = 0 },
+	};
 
-	renderDevice->DestroyVertexShader(vertexShader);
-	renderDevice->DestroyPixelShader(pixelShader);
+	render::VertexBufferLayout vertexBufferLayout;
+	vertexBufferLayout.arrayStride = sizeof(Vertex);
+	vertexBufferLayout.attributeCount = COUNT_OF(vertexAttributes);
+	vertexBufferLayout.attributes = vertexAttributes;
+
+	render::VertexDescriptor *vertexDescriptor = renderDevice->CreateVertexDescriptor(vertexBufferLayout);
+
+	render::Pipeline *pipeline = renderDevice->CreatePipeline(vertexShader, fragmentShader, vertexDescriptor);
+
+	library->DestroyFunction(vertexShader);
+	library->DestroyFunction(fragmentShader);
+	renderDevice->DestroyLibrary(library);
+
+	renderDevice->DestroyVertexDescriptor(vertexDescriptor);
 
 	// set up vertex data (and buffer(s)) and configure vertex attributes
 	// ------------------------------------------------------------------
-	float vertices[] = {
-		-0.5f, -0.5f, 0.0f, // left  
-		 0.5f, -0.5f, 0.0f, // right 
-		 0.0f,  0.5f, 0.0f  // top   
-	}; 
+	Vertex vertices[] = {
+		{ -0.5f, +0.5f, 0.0f },
+		{ -0.5f, -0.5f, 0.0f },
+		{ +0.5f, +0.5f, 0.0f },
+		{ +0.5f, -0.5f, 0.0f },
+	};
 
-	render::VertexBuffer *vertexBuffer = renderDevice->CreateVertexBuffer(sizeof(vertices), vertices);
-
-	render::VertexElement vertexElement = { 0, render::VERTEXELEMENTTYPE_FLOAT, 3, 0, 0, };
-	render::VertexDescription *vertexDescription = renderDevice->CreateVertexDescription(1, &vertexElement);
-
-	render::VertexArray *vertexArray = renderDevice->CreateVertexArray(1, &vertexBuffer, &vertexDescription);
+	render::Buffer *vertexBuffer = renderDevice->CreateBuffer(render::BUFFERTYPE_VERTEX, sizeof(vertices), vertices);
 
 	// render loop
 	// -----------
@@ -66,21 +83,20 @@ int main()
 	{
 		// render
 		// ------
-		renderDevice->Clear(0.2f, 0.3f, 0.3f, 1.0f, 1.0f);
+		renderDevice->Clear(0.5f, 0.5f, 0.5f, 1.0f, 1.0f);
 
-		// draw our first triangle
 		renderDevice->SetPipeline(pipeline);
-		renderDevice->SetVertexArray(vertexArray);
-		renderDevice->DrawTriangles(0, 3);
+
+		// draw the triangle strip
+		renderDevice->SetBuffer(vertexBuffer);
+		renderDevice->Draw(render::PRIMITIVETYPE_TRIANGLESTRIP, 0, COUNT_OF(vertices));
 
 		platform::PresentPlatformWindow(window);
 	}
 
 	// optional: de-allocate all resources once they've outlived their purpose:
 	// ------------------------------------------------------------------------
-	renderDevice->DestroyVertexArray(vertexArray);
-	renderDevice->DestroyVertexDescription(vertexDescription);
-	renderDevice->DestroyVertexBuffer(vertexBuffer);
+	renderDevice->DestroyBuffer(vertexBuffer);
 	renderDevice->DestroyPipeline(pipeline);
 
 	platform::TerminatePlatform();
